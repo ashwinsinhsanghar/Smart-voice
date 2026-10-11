@@ -1,0 +1,105 @@
+name: Android CI Build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # Finds the Android project automatically, even if it sits inside a sub-folder.
+      - name: Locate Android project
+        run: |
+          SETTINGS=$(find . -maxdepth 3 \( -name settings.gradle -o -name settings.gradle.kts \) -not -path "*/node_modules/*" | head -n 1)
+          if [ -z "$SETTINGS" ]; then
+            echo "::error::settings.gradle not found. Upload the whole project (settings.gradle, build.gradle, src/, Ketan.jks ...) to the repository."
+            find . -maxdepth 3 -not -path "./.git/*" | head -n 50
+            exit 1
+          fi
+          PROJECT_DIR=$(dirname "$SETTINGS")
+          echo "Project directory: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Check signing files
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          for f in keystore.properties Ketan.jks; do
+            if [ ! -f "$f" ]; then
+              echo "::error::$f is missing in $PROJECT_DIR. The release APK cannot be signed."
+              exit 1
+            fi
+          done
+
+      - name: Install Android SDK packages
+        run: |
+          SDKMANAGER=$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n 1)
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;35.0.0" > /dev/null
+
+      # The project ships its own Gradle wrapper (Gradle 8.11.1, required by Android Gradle Plugin 8.9.3).
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build release APK (signed with Ketan.jks via keystore.properties)
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Auto-detect app name and version, rename APK
+        id: rename_apk
+        run: |
+          APK_DIR="$PROJECT_DIR/build/outputs/apk/release"
+          APK_PATH=$(find "$APK_DIR" -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::No APK found in $APK_DIR"
+            exit 1
+          fi
+
+          AAPT=$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" -name aapt -type f 2>/dev/null | sort -V | tail -n 1)
+
+          BADGING=$("$AAPT" dump badging "$APK_PATH" 2>/dev/null || true)
+          APP_LABEL=$(grep -m1 "application-label:" <<< "$BADGING" | sed -E "s/application-label:'([^']*)'.*/\1/" || true)
+          VERSION_NAME=$(grep -m1 "^package:" <<< "$BADGING" | sed -E "s/.*versionName='([^']*)'.*/\1/" || true)
+
+          APP_LABEL="${APP_LABEL:-SmartVoice}"
+          VERSION_NAME="${VERSION_NAME:-1.0}"
+
+          FINAL_NAME="${APP_LABEL} v${VERSION_NAME}.apk"
+          FINAL_PATH="$APK_DIR/${FINAL_NAME}"
+          cp "$APK_PATH" "$FINAL_PATH"
+
+          echo "final_name=${FINAL_NAME}" >> "$GITHUB_OUTPUT"
+          echo "final_path=${FINAL_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.rename_apk.outputs.final_name }}
+          path: ${{ steps.rename_apk.outputs.final_path }}
+          if-no-files-found: error
+
+      - name: Send release APK to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: "8673316884:AAFTuPfNCb8cQm3KfNH6c3k0BcO_zVLAwR8"
+          TELEGRAM_CHAT_ID: "6310779717"
+        run: |
+          RESPONSE=$(curl -s -F chat_id="${TELEGRAM_CHAT_ID}" \
+               -F caption="${{ steps.rename_apk.outputs.final_name }}" \
+               -F document=@"${{ steps.rename_apk.outputs.final_path }}" \
+               "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument")
+          echo "$RESPONSE"
+          if ! grep -q '"ok":true' <<< "$RESPONSE"; then
+            echo "::warning::Telegram upload failed (bot API limit for files is 50 MB). The APK is still available in the workflow artifacts."
+          fi

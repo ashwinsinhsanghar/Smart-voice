@@ -1,0 +1,65 @@
+package aktech.tts.smartvoice.ui;
+
+import java.util.Locale;
+
+import android.content.Context;
+
+import aktech.tts.smartvoice.R;
+import aktech.tts.smartvoice.api.Utils;
+
+enum HumanName {
+
+    Male(R.string.voice_male),
+    Female(R.string.voice_female);
+
+    private int resId;
+
+    HumanName(int resId) {
+        this.resId = resId;
+    }
+
+    static String compose(String language, String person) {
+        return String.format(Locale.getDefault(), "%s - %s", person, language);
+    }
+
+    static String get(String language) {
+        Locale locale = Utils.obtainLocale(language);
+        return locale.getDisplayLanguage();
+    }
+
+    static String get(String language, String country) {
+        Locale locale = ((country != null) && !country.equals(Utils.ANY_COUNTRY)) ?
+            Utils.obtainLocale(language, country) :
+            Utils.obtainLocale(language);
+        return locale.getDisplayName();
+    }
+
+    static String get(String internalName, Context context) {
+        String externalName = internalName;
+        try {
+            externalName = valueOf(internalName).localize(context);
+        } catch (Exception ex) {
+            int nameLength = internalName.indexOf('/');
+            if (nameLength > 0)
+                externalName = internalName.substring(0, nameLength);
+        }
+        return externalName;
+    }
+
+    static String get(String lang, String country, String person) {
+        return compose(get(lang, country), person);
+    }
+
+    static String get(String lang, String country, String variant, Context context) {
+        return get(lang, country, get(variant, context));
+    }
+
+    static String get(String[] vs, Context context) {
+        return get(vs[0], vs[1], vs[2], context);
+    }
+
+    private String localize(Context context) {
+        return context.getString(resId);
+    }
+
+}

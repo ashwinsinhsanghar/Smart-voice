@@ -1,0 +1,71 @@
+# To enable ProGuard in your project, edit project.properties
+# to define the proguard.config property as described in that file.
+#
+# Add project specific ProGuard rules here.
+# By default, the flags in this file are appended to flags specified
+# in ${sdk.dir}/tools/proguard/proguard-android.txt
+# You can edit the include path and order by changing the ProGuard
+# include property in project.properties.
+#
+# For more details, see
+#   http://developer.android.com/guide/developing/tools/proguard.html
+
+# Add any project specific keep options here:
+
+# If your project uses WebView with JS, uncomment the following
+# and specify the fully qualified class name to the JavaScript interface
+# class:
+#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
+#   public *;
+#}
+
+-dontnote com.google.vending.licensing.**
+-dontnote com.android.vending.licensing.**
+-dontnote android.support.annotation.**
+
+-keep class aktech.tts.smartvoice.markup.LanguageData {
+    private java.lang.String name;
+    private java.lang.String alphabet;
+    private orestes.bloomfilter.BloomFilter filter;
+}
+
+-keep class aktech.tts.smartvoice.markup.Selector {
+    private java.lang.String prefix;
+    private java.lang.String suffix;
+    private java.lang.String[] patterns;
+    private aktech.tts.smartvoice.markup.Selector[] nested;
+}
+
+-keep class aktech.tts.smartvoice.markup.EmojiItem {
+    java.lang.String cp;
+    java.lang.String tts;
+}
+
+
+# Preference compat library
+-keep public class * extends androidx.preference.PreferenceFragmentCompat
+
+
+# Gson library
+
+-dontnote sun.misc.Unsafe
+
+-keepclassmembers class com.google.gson.internal.reflect.UnsafeReflectionAccessor {
+    java.lang.Object theUnsafe;
+}
+
+# Nuance Vocalizer: libNuanceVocalizer.so finds these classes, fields and methods by name through JNI.
+-keep class com.nuance.android.vocalizer.** { *; }
+-keepclassmembers class com.nuance.android.vocalizer.** { *; }
+-keepclasseswithmembernames class * { native <methods>; }
+
+# remove debug/info logging from release builds
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}
+
+# Google TTS: libgoogle_speech_sbg_tts_jni.so finds these classes, fields and methods by name through JNI.
+-keep class com.google.android.apps.speech.tts.googletts.** { *; }
+-keepclassmembers class com.google.android.apps.speech.tts.googletts.** { *; }

@@ -1,0 +1,239 @@
+stream {
+  name: "utterance_initializer"
+  classname: "UtteranceInitializerStream"
+  params {
+    [speech.tts.ResourceReferenceParams.id] {
+      voice_params_ref: "voice_params"
+    }
+  }
+}
+stream {
+  name: "lstm_add_specification"
+  classname: "AddSpecificationStream"
+  params {
+    [speech.tts.ResourceReferenceParams.id] {
+      add_specification_ref: "lstm_add_specification_resource"
+    }
+  }
+}
+stream {
+  name: "chive_inference_stream"
+  classname: "ChiveInferenceStream"
+  params {
+    [speech.tts.ResourceReferenceParams.id] {
+      tensorflow_inference_ref: "chive_inference_config"
+    }
+  }
+}
+stream {
+  name: "silence_modification_stream"
+  classname: "SilenceModificationStream"
+  params {
+    [speech.tts.SilenceModificationParams.id] {
+      modification {
+        operation: TRIM_START
+        duration_sec: 0.015
+      }
+    }
+    [speech.tts.ResourceReferenceParams.id] {
+      acoustic_frame_config_ref: "acoustic_frame_config"
+    }
+  }
+}
+stream {
+  name: "seanet_enhancer"
+  classname: "SeanetBatchEnhancerStream"
+  params {
+    [speech.tts.ResourceReferenceParams.id] {
+      wavernn_synthesizer_ref: "seanet_enhancer"
+    }
+  }
+}
+stream {
+  name: "utterance_to_audio_event"
+  classname: "UtteranceToEventStream"
+  params {
+    [speech.tts.UtteranceToEventParams.id] {
+      event_type: TTS_EVENT_AUDIO_FINISHED
+    }
+  }
+}
+connect {
+  from: "utterance_initializer"
+  to: "lstm_add_specification"
+}
+connect {
+  from: "lstm_add_specification"
+  to: "chive_inference_stream"
+}
+connect {
+  from: "chive_inference_stream"
+  to: "silence_modification_stream"
+}
+connect {
+  from: "silence_modification_stream"
+  to: "seanet_enhancer"
+}
+connect {
+  from: "seanet_enhancer"
+  to: "utterance_to_audio_event"
+}
+resource {
+  name: "acoustic_frame_config"
+  classname: "AcousticFrameConfig"
+  params {
+    [speech.tts.DataSourceParams.id] {
+      path: "burdock_frame_config.pb"
+      type: FILE
+    }
+  }
+}
+resource {
+  name: "engine_config"
+  classname: "EngineConfig"
+  params {
+    [speech.tts.DataSourceParams.id] {
+      path: "engine_config_gu_in_x_embedded_havoc.pb"
+      type: FILE
+    }
+  }
+}
+resource {
+  name: "guided_synthesis"
+  classname: "GuidedSynthesis"
+  params {
+    [speech.tts.ResourceReferenceParams.id] {
+      engine_config_ref: "engine_config"
+      acoustic_frame_config_ref: "acoustic_frame_config"
+    }
+  }
+}
+resource {
+  name: "phonology"
+  classname: "Phonology"
+  params {
+    [speech.tts.DataSourceParams.id] {
+      path: "gu_in_phonology.pb"
+      type: FILE
+    }
+    [speech.tts.LocaleInfo.id] {
+      language: "gu"
+      region: "in"
+      foreign: false
+    }
+  }
+}
+resource {
+  name: "lstm_add_specification_resource"
+  classname: "AddSpecificationResource"
+  params {
+    [speech.tts.ResourceReferenceParams.id] {
+      phonology_ref: "phonology"
+    }
+    [speech.tts.AddSpecificationResourceParams.id] {
+      phonology_ref: "phonology"
+      data_source {
+        path: "burdock_model.params.pb"
+      }
+      feature_set_type: REGULAR
+      specification_type: PARAMETRIC_SYNTHESIS
+    }
+  }
+}
+resource {
+  name: "chive_inference_config"
+  classname: "ChiveInferenceResource"
+  params {
+    [speech.tts.ChiveInferenceResourceParams.id] {
+      inference_config {
+        path: "chive_model_fused.pb"
+        type: FILE
+      }
+      apply_voicemod: true
+      defer_timing_adjustment: false
+      ref {
+        add_specification_ref: "lstm_add_specification_resource"
+        engine_config_ref: "engine_config"
+        acoustic_frame_config_ref: "acoustic_frame_config"
+        guided_synthesis_ref: "guided_synthesis"
+      }
+      tflite_config {
+        tflite_model {
+          path: "burdock_valerian_model.tflite"
+          type: MEMORY
+        }
+        is_static: false
+      }
+      force_pause_durations: SENTENCE_END_AND_CLIENT_SPECIFIED
+      mds_label: "CHIVE_MODEL_fused_mul_034_x_multi_embedded_burdock_valerian.20200921_171017_newlstm"
+    }
+  }
+}
+resource {
+  name: "seanet_enhancer"
+  classname: "SeanetBatchEnhancer"
+  params {
+    [speech.tts.SeanetResourceParams.id] {
+      model {
+        path: "seanet_model.tflite"
+        type: FILE
+      }
+      model_options {
+        path: "seanet_model_options.pb"
+        type: FILE
+      }
+      skip_silence: false
+    }
+  }
+}
+resource {
+  name: "voice_params"
+  classname: "VoiceParams"
+  params {
+    [speech.tts.VoiceParams.id] {
+      description: "embedded_valerian_vocoded voice for gu_in (speaker guf; sample rate 24000)"
+      language: "gu"
+      region: "in"
+      quality: "high"
+      sample_rate: 24000
+      server_voice_name: "gu-in-embedded-havoc"
+      voice_platform: EMBEDDED_VALERIAN_VOCODED
+      speakers {
+        speaker: "guf_05044"
+        gender: "female"
+        output_gain: 0.5094984
+        voice_name: "gu-in-embedded-havoc#guf"
+        launch_status: UNKNOWN_LAUNCH_STATUS
+      }
+      speakers {
+        speaker: "gum_08407"
+        gender: "male"
+        output_gain: 0.7511097
+        voice_name: "gu-in-embedded-havoc#gum"
+        launch_status: UNKNOWN_LAUNCH_STATUS
+      }
+      voice_mds_label: "VOICE_gu_in_x_embedded_havoc_20241015_184735213711"
+    }
+  }
+}
+name: "gu_in_x_embedded_havoc"
+[speech.tts.BackendPipelineMetadata.backend_metadata] {
+  textnorm_selector {
+    language_code: "gu-IN"
+    compatibility_versions {
+      versions {
+        language_code: "en-IN"
+        version: 0
+      }
+      versions {
+        language_code: "gu-IN"
+        version: 0
+      }
+    }
+    textnorm_type: "embedded"
+    supported_phonologies: "gu-IN"
+  }
+  voice_building_metadata {
+    voice_mds_label: "VOICE_gu_in_x_embedded_havoc_20241015_184735213711"
+  }
+}

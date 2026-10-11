@@ -1,0 +1,145 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.9.3'
+    }
+}
+
+allprojects {
+    repositories {
+        google() // and here
+        mavenCentral()
+    }
+
+    gradle.projectsEvaluated {
+        tasks.withType(JavaCompile) {
+            options.compilerArgs << "-Xlint:deprecation" << "-Xlint:unchecked"
+        }
+    }
+}
+
+apply plugin: 'com.android.application'
+
+Properties properties = new Properties()
+def localProperties = project.file('local.properties')
+if (localProperties.exists())
+    localProperties.withInputStream { properties.load(it) }
+
+// Release signing: keystore.properties (storeFile, storePassword, keyAlias, keyPassword) is used first,
+// local.properties (key.store, ...) is the fallback.
+Properties keystoreProperties = new Properties()
+def keystorePropertiesFile = project.file('keystore.properties')
+if (keystorePropertiesFile.exists())
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+
+android {
+    compileSdkVersion 36
+    namespace 'aktech.tts.smartvoice'
+
+    defaultConfig {
+        applicationId "aktech.tts.smartvoice"
+        minSdkVersion 24
+        targetSdkVersion 36
+        versionCode 1
+        versionName "1.0"
+
+        // libNuanceVocalizer.so is 64-bit only
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+    }
+
+    dependenciesInfo {
+        // Disables dependency metadata when building APKs.
+        includeInApk = false
+        // Disables dependency metadata when building Android App Bundles.
+        includeInBundle = false
+    }
+
+    // Nuance Vocalizer voice data (.dat) and pipeline headers (.hdr) are read by the engine through
+    // file descriptors of the APK assets, so they must be stored uncompressed.
+    androidResources {
+        noCompress 'dat', 'hdr', 'xmf'
+    }
+
+    // Keep the APK small: native libs are compressed inside the APK, junk metadata is dropped.
+    // (The voice data in assets stays stored, i.e. uncompressed - see noCompress above.)
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+        resources {
+            excludes += ['META-INF/*.version', 'META-INF/*.kotlin_module', 'DebugProbesKt.bin',
+                         'kotlin-tooling-metadata.json', 'META-INF/proguard/**', 'META-INF/LICENSE*',
+                         'META-INF/NOTICE*', 'META-INF/DEPENDENCIES', 'META-INF/AL2.0', 'META-INF/LGPL2.1']
+        }
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreProperties.getProperty('storeFile')) {
+                keyAlias keystoreProperties.getProperty('keyAlias')
+                keyPassword keystoreProperties.getProperty('keyPassword')
+                storeFile file(keystoreProperties.getProperty('storeFile'))
+                storePassword keystoreProperties.getProperty('storePassword')
+            } else if (properties.getProperty('key.store')) {
+                keyAlias properties.getProperty('key.alias')
+                keyPassword properties.getProperty('key.alias.password')
+                storeFile file(properties.getProperty('key.store'))
+                storePassword properties.getProperty('key.store.password')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-project.txt'
+            if (keystoreProperties.getProperty('storeFile') || properties.getProperty('key.store'))
+                signingConfig signingConfigs.release
+            applicationVariants.all { variant ->
+                variant.outputs.all {
+                    outputFileName = outputFileName.replace("release", defaultConfig.versionName)
+                }
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility 1.8
+        targetCompatibility 1.8
+    }
+
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
+
+configurations.all {
+    resolutionStrategy {
+        eachDependency {
+            if ((requested.group == "org.jetbrains.kotlin") && (requested.name.startsWith("kotlin-stdlib"))) {
+                useVersion("1.9.0")
+            }
+        }
+    }
+}
+
+dependencies {
+    implementation files('libs/base64-2.3.8.jar')
+    implementation files('libs/gson-2.8.5.jar')
+
+    implementation 'androidx.appcompat:appcompat:1.8.0'
+    implementation 'androidx.core:core:1.18.0'
+    implementation 'androidx.activity:activity:1.13.0'
+    implementation 'androidx.lifecycle:lifecycle-common:2.11.0'
+    implementation 'androidx.fragment:fragment:1.9.1'
+    implementation 'androidx.preference:preference:1.2.1'
+    implementation 'net.mm2d.preference:preference:0.3.2'
+}

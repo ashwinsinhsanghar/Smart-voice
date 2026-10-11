@@ -1,0 +1,135 @@
+package aktech.tts.smartvoice.ui;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+
+import android.app.Activity;
+import android.content.SharedPreferences;
+import android.os.Bundle;
+
+import androidx.preference.MultiSelectListPreference;
+import androidx.preference.PreferenceManager;
+
+import net.mm2d.preference.PreferenceActivityCompat;
+
+import aktech.tts.smartvoice.LanguageDetectionOrder;
+import aktech.tts.smartvoice.R;
+import aktech.tts.smartvoice.SmartVoiceApp;
+
+public class AutolangSettingsFragment extends CustomDialogPreferenceFragment implements SharedPreferences.OnSharedPreferenceChangeListener {
+
+    private String autoLangsKey;
+    private String stickyLangsKey;
+    private String detectionOrderKey;
+
+    private MultiSelectListPreference autoLangsPreference;
+    private MultiSelectListPreference stickyLangsPreference;
+    private LanguageOrderPreference detectionOrderPreference;
+
+    private LanguageDetectionOrder languageDetectionOrder;
+    private SmartVoiceApp app;
+
+
+    private void summarize(MultiSelectListPreference preference) {
+        StringBuilder summary = new StringBuilder();
+        CharSequence[] entries = preference.getEntries();
+        CharSequence[] entryValues = preference.getEntryValues();
+        if (preference.getKey().equals(autoLangsKey)) {
+            Set<String> orderedValues = new TreeSet<String>(languageDetectionOrder);
+            List<CharSequence> orderedEntries = new ArrayList<CharSequence>();
+            for (CharSequence value : entryValues)
+                orderedValues.add(value.toString());
+            for (String value : orderedValues)
+                orderedEntries.add(entries[preference.findIndexOfValue(value)]);
+            entries = orderedEntries.toArray(new CharSequence[0]);
+            entryValues = orderedValues.toArray(new CharSequence[0]);
+        }
+        Set<String> values = preference.getValues();
+        for (int i = 0; i < entryValues.length; i++) {
+            String value = entryValues[i].toString();
+            if (values.contains(value)) {
+                if (summary.length() > 0)
+                    summary.append(", ");
+                summary.append(entries[i]);
+            }
+        }
+        if (summary.length() > 0) {
+            preference.setSummary(summary.toString());
+        } else {
+            preference.setSummary(R.string.no_selections);
+        }
+    }
+
+    private void setupLanguageSelectionPreference(MultiSelectListPreference preference, Set<String> langs) {
+        Set<VoiceItem> items = SortedItems.from(langs);
+        String[] values = new String[items.size()];
+        String[] entries = new String[values.length];
+        int i = 0;
+        for (VoiceItem item : items) {
+            entries[i] = item.getName();
+            values[i] = item.getValue();
+            i++;
+        }
+        Set<String> selections = new HashSet<String>(PreferenceManager.getDefaultSharedPreferences(app).getStringSet(preference.getKey(), preference.getKey().equals(autoLangsKey) ? SmartVoiceApp.DEFAULT_AUTO_LANGS : Collections.<String>emptySet()));
+        selections.retainAll(langs);
+        preference.setEntries(entries);
+        preference.setEntryValues(values);
+        preference.setValues(selections);
+        summarize(preference);
+    }
+
+
+    @Override
+    public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
+        getActivity().invalidateOptionsMenu();
+        addPreferencesFromResource(R.xml.autolang_preferences);
+        autoLangsKey = getString(R.string.pref_languages_auto_key);
+        stickyLangsKey = getString(R.string.pref_languages_sticky_key);
+        detectionOrderKey = getString(R.string.language_detection_order_key);
+        app = (SmartVoiceApp) getActivity().getApplication();
+        languageDetectionOrder = new LanguageDetectionOrder(app, PreferenceManager.getDefaultSharedPreferences(app).getString(detectionOrderKey, null));
+        Set<String> langs = new HashSet<String>();
+        Set<String> availableLanguages = new HashSet<String>();
+        for (String l : app.languages)
+            if (l.length() == 3)
+                availableLanguages.add(l);
+        Collections.addAll(langs, getResources().getStringArray(R.array.languages));
+        langs.retainAll(availableLanguages);
+
+        autoLangsPreference = (MultiSelectListPreference)findPreference(autoLangsKey);
+        stickyLangsPreference = (MultiSelectListPreference)findPreference(stickyLangsKey);
+        detectionOrderPreference = (LanguageOrderPreference)findPreference(detectionOrderKey);
+
+        setupLanguageSelectionPreference(autoLangsPreference, langs);
+        setupLanguageSelectionPreference(stickyLangsPreference, availableLanguages);
+        detectionOrderPreference.setAllowedItems(autoLangsPreference.getValues());
+
+        PreferenceManager.getDefaultSharedPreferences(app).registerOnSharedPreferenceChangeListener(this);
+    }
+
+    @Override
+    public void onDestroy() {
+        PreferenceManager.getDefaultSharedPreferences(app).unregisterOnSharedPreferenceChangeListener(this);
+        super.onDestroy();
+    }
+
+    @Override
+    public void onSharedPreferenceChanged(SharedPreferences preferences, String key) {
+        if (autoLangsKey.equals(key)) {
+            summarize(autoLangsPreference);
+            detectionOrderPreference.setAllowedItems(autoLangsPreference.getValues());
+        } else if (stickyLangsKey.equals(key)) {
+            summarize(stickyLangsPreference);
+        } else if (detectionOrderKey.equals(key)) {
+            languageDetectionOrder.setup(preferences.getString(key, null));
+            summarize(autoLangsPreference);
+        }
+    }
+
+}

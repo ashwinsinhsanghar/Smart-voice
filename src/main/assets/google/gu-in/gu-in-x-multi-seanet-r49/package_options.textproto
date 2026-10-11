@@ -1,0 +1,40 @@
+synth_runtime_directory: "/export/hda3/borglet/remote_package_fs_dirs/0.fishery-packager.fishery_gu_in_x_embedded_havoc_speech-tts-builder_20241015_1847.2t8c8t7hdowa4aa9fimh79nbdc.speech-tts-builder.4066614604302.fs_dir_group.11309883115756801395/mount_point"
+output_dir: "/namespace/speech-tts-builder/voice-building/ttl=30d/fishery_gu_in_x_embedded_havoc_speech-tts-builder_20241015_184735213711/package/final"
+voice_name: "gu_in_x_embedded_havoc"
+mds_register_request {
+  label: "VOICE_gu_in_x_embedded_havoc_20241015_184735213711"
+  model_type: TTS_VOICE
+  language_variant {
+    language: "gu_in"
+    variant: "gu_in_x_embedded_havoc"
+  }
+  changelist: 686179577
+  check_dev_path_exists: true
+}
+scratch_dir: "/namespace/speech-tts-builder/voice-building/ttl=30d/fishery_gu_in_x_embedded_havoc_speech-tts-builder_20241015_184735213711/package"
+lstm_options {
+  pie_conversion_options {
+    is_binary_proto: true
+    quantization_type: NONE
+    percentile_in_range: 100
+    layout: ROW_MAJOR
+  }
+}
+synth_runtime_package_name: "speech/tts/synth_runtime/gu_in_x_embedded_havoc"
+synth_runtime_version: "fishery_fishery_gu_in_x_embedded_havoc_speech-tts-builder_20241015_184735213711"
+artifacts {
+  artifact_type: CHIVE_MODEL
+  locale: "mul"
+  variant: "gu_in_x_burdock_valerian"
+  label_override: "CHIVE_MODEL_fused_mul_034_x_multi_embedded_burdock_valerian.20200921_171017_newlstm"
+  chive_model_info {
+    chive_model_type: BURDOCK_VALERIAN
+  }
+}
+artifacts {
+  artifact_type: SEANET_MODEL
+  locale: "gu_in"
+  label_override: "SEANET_MODEL_havoc_multilocale_20210805_0417_WithSeanetModelOptions_fp16"
+}
+backend_type: "embedded_valerian_vocoded"
+generate_backend_package: false
